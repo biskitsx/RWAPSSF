@@ -12,13 +12,16 @@ contract RPS is CommitReveal{
         bool input;
     }
 
+    // variable
     uint public numPlayer = 0;
     uint public reward = 0;
     uint public numInput = 0;
     uint public timeLimit = 1 hours ;
     uint public revealCount = 0;
+
+    // mapping
     mapping (uint => Player) public player;
-    mapping  (address => uint) public  addressToPlayer ;
+    mapping  (address => uint) public  addressToPlayer ; // แก้: 2.ยากต่อการจะรู้ account ใดเป็น 1, 2
 
     function addPlayer() public payable {
         require(numPlayer < 2, "RPS::addPlayer: Require only 2 player");
@@ -36,8 +39,7 @@ contract RPS is CommitReveal{
     }
 
     function input(uint choice) public  {
-
-        uint idx = addressToPlayer[msg.sender]; // แก้: 2.ยากต่อการจะรู้ account ใดเป็น 1, 2
+        uint idx = addressToPlayer[msg.sender]; 
         require(numPlayer == 2, "RPS::input: We need two player first");
         require(msg.sender == player[idx].addr);
         require(choice >= 0 || choice < 7, "RPS::input: choice should be 0-7 only");
@@ -51,8 +53,9 @@ contract RPS is CommitReveal{
     }
 
     function revealChoice(uint choice) public  {
-        uint idx = addressToPlayer[msg.sender];
         require(numInput == 2, "RPS::revealChoice: Input should equal 2");
+        
+        uint idx = addressToPlayer[msg.sender];
         reveal(bytes32(choice));
         player[idx].choice = choice;
         revealCount++;
@@ -118,6 +121,7 @@ contract RPS is CommitReveal{
         reward = 0;
         numInput = 0;
         revealCount = 0;
+
         // delete player ;
         address account0 = player[0].addr;
         address account1 = player[1].addr;
@@ -127,6 +131,5 @@ contract RPS is CommitReveal{
 
         delete player[0];
         delete player[1];        
-        
     }
 }

@@ -4,34 +4,33 @@ pragma solidity >=0.7.0 <0.9.0;
 import "contracts/CommitReveal.sol";
 
 
-contract RPS{
+contract RPS is CommitReveal{
     struct Player {
         uint choice; // 0 - Rock, 1 - Water, 2 - Air, 3 - Paper, 4 - Sponge, 5 - Scissors, 6 - Fire, 7 - Undefined
         address addr;
         uint timestamp;
+        bool input;
     }
 
     uint public numPlayer = 0;
     uint public reward = 0;
     uint public numInput = 0;
-    uint public timeLimit = 15 seconds ;
+    uint public timeLimit = 1 hours ;
+    uint public revealCount = 0;
     mapping (uint => Player) public player;
     mapping  (address => uint) public  addressToPlayer ;
-    CommitReveal public  commitReveal;
-
-    constructor() {
-        commitReveal = new CommitReveal();
-    }
 
     function addPlayer() public payable {
-        require(numPlayer < 2, "require only 2 player");
-        require(player[0].addr != msg.sender, "you have been registered");
-        require(msg.value == 1 ether, "please fill 1 ether");
+        require(numPlayer < 2, "RPS::addPlayer: Require only 2 player");
+        require(player[0].addr != msg.sender, "RPS::addPlayer: You already registered");
+        require(msg.value == 1 ether, "RPS::addPlayer: Please fill 1 ether");
 
         reward += msg.value;
+        // init player
         player[numPlayer].addr = msg.sender;
         player[numPlayer].choice = 7;
         player[numPlayer].timestamp = block.timestamp;
+        player[numPlayer].input = false;
         addressToPlayer[msg.sender] = numPlayer;
         numPlayer++;
     }
@@ -39,17 +38,25 @@ contract RPS{
     function input(uint choice) public  {
 
         uint idx = addressToPlayer[msg.sender]; // แก้: 2.ยากต่อการจะรู้ account ใดเป็น 1, 2
-        require(numPlayer == 2, "we need two player first");
+        require(numPlayer == 2, "RPS::input: We need two player first");
         require(msg.sender == player[idx].addr);
-        require(choice >= 0 || choice < 7, "choice should be 0-7 only");
-        player[idx].choice = choice;
-        player[numPlayer].timestamp = block.timestamp;
+        require(choice >= 0 || choice < 7, "RPS::input: choice should be 0-7 only");
+        player[idx].timestamp = block.timestamp;
+        player[idx].input = true;
 
         // hash choice จากนั้น commit
-        // bytes32 hashData = commitReveal.getHash(bytes32(choice));
-        // commitReveal.commit(hashData);
+        bytes32 hashData = getHash(bytes32(choice));
+        commit(hashData);
         numInput++;
-        if (numInput == 2) {
+    }
+
+    function revealChoice(uint choice) public  {
+        uint idx = addressToPlayer[msg.sender];
+        require(numInput == 2, "RPS::revealChoice: Input should equal 2");
+        reveal(bytes32(choice));
+        player[idx].choice = choice;
+        revealCount++;
+        if (revealCount == 2) {
             _checkWinnerAndPay();
         }
     }
@@ -78,30 +85,26 @@ contract RPS{
 
     // แก้: 3, 4
     function withdraw() public {
-        require(numPlayer == 1 || numPlayer == 2, "have no player to withdraw");
-        uint idx ;
-        
-        if (numPlayer == 1) { // แก้: 3. เงินของ plyer 0 อาจถูกล็อกหากไม่มี player 1 มาลงขัน
+        require(numPlayer == 1 || numPlayer == 2, "RPS::withdraw: Have no player to withdraw");
+        require(msg.sender == player[0].addr || msg.sender == player[1].addr, "RPS::withdraw: Unauthorize to withdraw");
+        uint idx = addressToPlayer[msg.sender];
+
+        // state 1: มีคนลงขันแค่คนเดียว
+        if (numPlayer == 1) {
             idx = 0;
-        
-        } else { // แก้: 4. กรณี ได้ 2 player แต่มีแค่ player เดียวที่ลงขัน ทำให้เงินถูกล้อก 
-            // หาว่า player คนไหนเป็นผู้ถูกล็อก
-            uint choice0 = player[0].choice;
-            uint choice1 = player[1].choice;
+        }
+        // state 2: ลงขันสองคน แต่มีคนไม่ยอม commit
+        else if (numPlayer == 2 && numInput < 2) {
+            require(player[idx].input == true, "RPS::withdraw: You need to commit");
+        } 
+        // state 3: ลงขันสองคน ยอม commit แต่มีคนไม่ยอม reveal
+        else if (numPlayer == 2 && numInput == 2 && revealCount < 2) {
+            require(commits[msg.sender].revealed == true, "RPS::withdraw: You need to Reveal");
 
-            // หากยังไม่เลือกทั้งคู่ให้ผ่านไปเลย
-            require(!(choice0 == 7 && choice1 == 7), "you need to call input first") ;
-
-            // player 0 ถูก ล็อก
-            if (choice0 != 7) {
-                idx = 0;
-            } else {
-                idx = 1;
-            }
         }
         // ถอนเงินจาก reward ไปยัง player
-        require(msg.sender == player[idx].addr, "unauthorize to withdraw");
-        require(block.timestamp -  player[idx].timestamp > timeLimit, "please wait to withdraw within 1 minute");
+        require(msg.sender == player[idx].addr, "RPS::withdraw: Unauthorize to withdraw");
+        require(block.timestamp -  player[idx].timestamp > timeLimit, "RPS::withdraw: Please wait to withdraw within 1 hours");
         address payable account = payable(player[idx].addr);
         account.transfer(reward);
 
@@ -114,7 +117,7 @@ contract RPS{
         numPlayer = 0;
         reward = 0;
         numInput = 0;
-
+        revealCount = 0;
         // delete player ;
         address account0 = player[0].addr;
         address account1 = player[1].addr;

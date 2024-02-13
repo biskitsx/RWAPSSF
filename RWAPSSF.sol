@@ -43,7 +43,7 @@ contract RPS is CommitReveal{
         uint idx = addressToPlayer[msg.sender]; 
         require(numPlayer == 2, "RPS::input: We need two player first");
         require(numInput < 2, "RPS::input: Can not add more input");
-        require(msg.sender == player[idx].addr);
+        require(msg.sender == player[idx].addr, "RPS::input: You are unauthorize");
         require(choice >= 0 || choice < 7, "RPS::input: choice should be 0-7 only");
         require(player[idx].isCommited == false, "RPS::input: You already committed");
         player[idx].timestamp = block.timestamp;
@@ -58,9 +58,11 @@ contract RPS is CommitReveal{
     }
 
     function revealChoice(uint choice, string memory salt) public  {
-        require(numInput == 2, "RPS::revealChoice: Input should equal 2");
         
         uint idx = addressToPlayer[msg.sender];
+        require(numInput == 2, "RPS::revealChoice: Input should equal 2");
+        require(msg.sender == player[idx].addr, "RPS::revealChoice: You are unauthorize");
+
         bytes32 bSalt = bytes32(abi.encodePacked(salt));
         bytes32 bChoice = bytes32(abi.encodePacked(choice));
         revealAnswer(bChoice, bSalt);

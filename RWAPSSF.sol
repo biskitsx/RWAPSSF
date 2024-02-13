@@ -16,7 +16,7 @@ contract RPS is CommitReveal{
     uint public numPlayer = 0;
     uint public reward = 0;
     uint public numInput = 0;
-    uint public timeLimit = 1 hours ;
+    uint public timeLimit = 5 minutes ;
     uint public revealCount = 0;
 
     // mapping
@@ -45,6 +45,7 @@ contract RPS is CommitReveal{
         require(numInput < 2, "RPS::input: Can not add more input");
         require(msg.sender == player[idx].addr);
         require(choice >= 0 || choice < 7, "RPS::input: choice should be 0-7 only");
+        require(player[idx].isCommited == false, "RPS::input: You already committed");
         player[idx].timestamp = block.timestamp;
         player[idx].isCommited = true;
 

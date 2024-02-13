@@ -9,7 +9,7 @@ contract RPS is CommitReveal{
         uint choice; // 0 - Rock, 1 - Water, 2 - Air, 3 - Paper, 4 - Sponge, 5 - Scissors, 6 - Fire, 7 - Undefined
         address addr;
         uint timestamp;
-        bool input;
+        bool isCommited;
     }
 
     // variable
@@ -33,30 +33,36 @@ contract RPS is CommitReveal{
         player[numPlayer].addr = msg.sender;
         player[numPlayer].choice = 7;
         player[numPlayer].timestamp = block.timestamp;
-        player[numPlayer].input = false;
+        player[numPlayer].isCommited = false;
         addressToPlayer[msg.sender] = numPlayer;
         numPlayer++;
     }
 
-    function input(uint choice) public  {
+
+    function input(uint choice, string memory salt) public  {
         uint idx = addressToPlayer[msg.sender]; 
         require(numPlayer == 2, "RPS::input: We need two player first");
+        require(numInput < 2, "RPS::input: Can not add more input");
         require(msg.sender == player[idx].addr);
         require(choice >= 0 || choice < 7, "RPS::input: choice should be 0-7 only");
         player[idx].timestamp = block.timestamp;
-        player[idx].input = true;
+        player[idx].isCommited = true;
 
-        // hash choice จากนั้น commit
-        bytes32 hashData = getHash(bytes32(choice));
+        // hash choice + salt จากนั้น commit
+        bytes32 bSalt = bytes32(abi.encodePacked(salt));
+        bytes32 bChoice = bytes32(abi.encodePacked(choice));
+        bytes32 hashData = getSaltedHash(bChoice, bSalt) ;
         commit(hashData);
         numInput++;
     }
 
-    function revealChoice(uint choice) public  {
+    function revealChoice(uint choice, string memory salt) public  {
         require(numInput == 2, "RPS::revealChoice: Input should equal 2");
         
         uint idx = addressToPlayer[msg.sender];
-        reveal(bytes32(choice));
+        bytes32 bSalt = bytes32(abi.encodePacked(salt));
+        bytes32 bChoice = bytes32(abi.encodePacked(choice));
+        revealAnswer(bChoice, bSalt);
         player[idx].choice = choice;
         revealCount++;
         if (revealCount == 2) {
@@ -98,7 +104,7 @@ contract RPS is CommitReveal{
         }
         // state 2: ลงขันสองคน แต่มีคนไม่ยอม commit
         else if (numPlayer == 2 && numInput < 2) {
-            require(player[idx].input == true, "RPS::withdraw: You need to commit");
+            require(player[idx].isCommited == true, "RPS::withdraw: You need to commit");
         } 
         // state 3: ลงขันสองคน ยอม commit แต่มีคนไม่ยอม reveal
         else if (numPlayer == 2 && numInput == 2 && revealCount < 2) {
